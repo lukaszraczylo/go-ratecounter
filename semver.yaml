@@ -1,0 +1,10 @@
+version: 1
+force:
+  major: 0
+  minor: 1
+  patch: 0
+wording:
+  minor:
+    - minor-release
+  major:
+    - major-release
