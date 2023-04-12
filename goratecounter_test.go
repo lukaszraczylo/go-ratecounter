@@ -133,7 +133,10 @@ func (suite *Tests) TestRateCounter_WithName() {
 				_, err = test_rc.WithName(tt.fields.name)
 				assert.Error(t, err)
 			}
-			assert.Equal(t, test_rc.counters[tt.fields.name], tt.want.counters[tt.fields.name])
+			// assert equal except of field "parent"
+			assert.Equal(t, test_rc.counters[tt.fields.name].active, tt.want.counters[tt.fields.name].active)
+			assert.Equal(t, test_rc.counters[tt.fields.name].ticks, tt.want.counters[tt.fields.name].ticks)
+			assert.Equal(t, test_rc.counters[tt.fields.name].count, tt.want.counters[tt.fields.name].count)
 		})
 	}
 }

@@ -13,6 +13,7 @@ type Counter struct {
 	active bool
 	ticks  int64
 	count  int64
+	parent *RateCounter
 }
 
 type RateCounter struct {

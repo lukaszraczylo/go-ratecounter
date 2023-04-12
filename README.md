@@ -87,3 +87,22 @@ func main() {
 }
 ```
 
+#### Daisy chaining the counters
+
+This method allows you to access the counters directly without the need to use the `WithName` and `IncrByName` methods.
+
+```go
+package main
+
+import (
+    "github.com/lukaszraczylo/go-ratecounter"
+)
+
+func main() {
+  // Create base rate counter
+  base_rc := goratecounter.NewRateCounter()
+  // Create new named rate counter and try to increment it
+  named_counter := base_rc.WithName("testing-123").Incr(1)
+  // Get value of the named rate counter
+  fmt.Println(named_counter.Get()) // 1
+}

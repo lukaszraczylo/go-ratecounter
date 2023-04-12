@@ -105,15 +105,16 @@ func (suite *Tests) TestRateCounter_IncrByName() {
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
-			currentName := "default"
+			// currentName := "default"
+			tc := &Counter{}
 			if !tt.args.withName {
 			} else {
-				test_rc, _ = test_rc.WithName(tt.args.name)
-				currentName = tt.args.name
+				tc, _ = test_rc.WithName(tt.args.name)
+				// currentName = tt.args.name
 			}
 
 			test_rc.IncrByName(tt.args.name, tt.args.v)
-			assert.Equal(t, test_rc.counters[currentName].count, tt.args.v)
+			assert.Equal(t, tc.count, tt.args.v)
 		})
 	}
 }

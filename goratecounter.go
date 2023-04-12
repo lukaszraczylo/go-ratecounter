@@ -2,7 +2,6 @@ package goratecounter
 
 import (
 	"fmt"
-	"log"
 	"sync/atomic"
 	"time"
 )
@@ -10,7 +9,7 @@ import (
 // NewRateCounter creates a new RateCounter instance supporting multiple counters
 func NewRateCounter() *RateCounter {
 	rc := &RateCounter{
-		interval: 60 * time.Second, // TODO: Make sure to mention in documentation that this is the default value
+		interval: 60 * time.Second,
 		counters: make(map[string]*Counter),
 	}
 	rc.counters["default"] = &Counter{
@@ -35,19 +34,22 @@ func (rc *RateCounter) WithConfig(config RateCounterConfig) *RateCounter {
 
 // WithName creates a new counter with the given name
 // If the counter already exists - it will not be modified and error will be returned.
-func (rc *RateCounter) WithName(name string) (*RateCounter, error) {
+func (rc *RateCounter) WithName(name string) (*Counter, error) {
+	rc.mu.Lock()
+	defer rc.mu.Unlock()
 	if rc.counters == nil {
 		rc.counters = make(map[string]*Counter, 0)
 	}
-	if _, ok := rc.counters[name]; ok {
-		log.Println(binName + ": name already exists")
-		return nil, fmt.Errorf(binName + ": name already exists")
+	if _, ok := rc.counters[name]; !ok {
+		rc.counters[name] = &Counter{
+			active: true,
+			parent: rc,
+		}
+		rc.restart()
+	} else {
+		return rc.counters[name], fmt.Errorf("counter with name %s already exists", name)
 	}
-	rc.counters[name] = &Counter{
-		active: true,
-	}
-	rc.restart()
-	return rc, nil
+	return rc.counters[name], nil
 }
 
 // Channel and ticker related functions
@@ -65,6 +67,20 @@ func (rc *RateCounter) start() {
 			ticker.Stop()
 			return
 		}
+	}
+}
+
+func (rc *RateCounter) getCounter(name string) *Counter {
+	if c, ok := rc.counters[name]; ok {
+		return c
+	} else {
+		rc.mu.Lock()
+		rc.counters[name] = &Counter{
+			active: true,
+			parent: rc,
+		}
+		rc.mu.Unlock()
+		return rc.counters[name]
 	}
 }
 
