@@ -72,16 +72,25 @@ func (rc *RateCounter) GetTicksByName(name string) int64 {
 
 // GetRate returns the current rate of the default counter over period of time
 func (rc *RateCounter) GetRate() float64 {
+	if rc.Get() == 0 {
+		return 0
+	}
 	return float64(rc.Get()) / float64(rc.interval.Seconds())
 }
 
 // GetRate returns the current rate of the counter over period of time
 func (c *Counter) GetRate() float64 {
+	if c.Get() == 0 {
+		return 0
+	}
 	return float64(c.parent.interval.Seconds()) / float64(c.Get())
 }
 
 // GetRateByName returns the current rate of the counter with the given name
 func (rc *RateCounter) GetRateByName(name string) float64 {
+	if rc.GetByName(name) == 0 {
+		return 0
+	}
 	return float64(rc.GetByName(name)) / float64(rc.interval.Seconds())
 }
 
@@ -137,6 +146,9 @@ func (rc *RateCounter) GetPingRate() float64 {
 
 // Get ping rate for the counter
 func (c *Counter) GetPingRate() float64 {
+	if c.ticks == 0 {
+		return 0
+	}
 	return float64(c.parent.interval.Seconds()) / float64(c.ticks)
 }
 
