@@ -222,3 +222,49 @@ func (suite *Tests) TestRateCounter_WithExpiry() {
 		})
 	}
 }
+
+func (suite *Tests) TestRateCounter_PingWithExpiry() {
+	type fields struct {
+	}
+	type args struct {
+		name     string
+		rate     float64
+		interval time.Duration
+	}
+	tests := []struct {
+		want *RateCounter
+		name string
+		args args
+	}{
+		{
+			name: "IncrByTest - 1337",
+			args: args{
+				name:     "test-rate",
+				rate:     0.5,
+				interval: 2,
+			},
+			want: &RateCounter{
+				interval: 60 * time.Second,
+				counters: map[string]*Counter{
+					"t123": &Counter{
+						active: true,
+						count:  1337,
+					},
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		suite.T().Run(tt.name, func(t *testing.T) {
+			test_rc.WithConfig(RateCounterConfig{
+				Interval: time.Duration(tt.args.interval) * time.Second,
+			})
+			test_rc.Ping()
+			assert.Equal(t, tt.args.rate, test_rc.GetPingRate(), "Average does not match")
+
+			time.Sleep(time.Duration(tt.args.interval+1) * time.Second)
+
+			assert.Equal(t, float64(0), test_rc.GetPingRate(), "Rate does not match")
+		})
+	}
+}

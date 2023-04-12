@@ -9,6 +9,8 @@ type Incrementer interface {
 	GetTicks() int64
 	GetRate() float64
 	Average() float64
+	Ping()
+	GetPingRate() float64
 }
 
 // Incr increments the counter by the given value
@@ -75,7 +77,7 @@ func (rc *RateCounter) GetRate() float64 {
 
 // GetRate returns the current rate of the counter over period of time
 func (c *Counter) GetRate() float64 {
-	return float64(c.Get()) / float64(c.parent.interval.Seconds())
+	return float64(c.parent.interval.Seconds()) / float64(c.Get())
 }
 
 // GetRateByName returns the current rate of the counter with the given name
@@ -105,4 +107,43 @@ func (rc *RateCounter) AverageByName(name string) float64 {
 		return 0
 	}
 	return float64(rc.GetByName(name)) / float64(rc.GetTicksByName(name))
+}
+
+// Increase ping counter for the default rate counter
+func (rc *RateCounter) Ping() {
+	atomic.AddInt64(&rc.counters["default"].ticks, 1)
+}
+
+// Increase ping counter for the counter
+func (c *Counter) Ping() {
+	atomic.AddInt64(&c.ticks, 1)
+}
+
+// Increase ping counter for the counter with the given name
+func (rc *RateCounter) PingByName(name string) {
+	if _, ok := rc.counters[name]; !ok {
+		rc.WithName(name)
+	}
+	atomic.AddInt64(&rc.counters[name].ticks, 1)
+}
+
+// Get ping rate for default counter
+func (rc *RateCounter) GetPingRate() float64 {
+	if rc.counters["default"].ticks == 0 {
+		return 0
+	}
+	return float64(rc.counters["default"].ticks) / float64(rc.interval.Seconds())
+}
+
+// Get ping rate for the counter
+func (c *Counter) GetPingRate() float64 {
+	return float64(c.parent.interval.Seconds()) / float64(c.ticks)
+}
+
+// Get ping rate for the counter with the given name
+func (rc *RateCounter) GetPingRateByName(name string) float64 {
+	if rc.GetTicksByName(name) == 0 {
+		return 0
+	}
+	return float64(rc.interval.Seconds()) / float64(rc.counters[name].ticks)
 }

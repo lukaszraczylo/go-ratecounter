@@ -106,3 +106,7 @@ func main() {
   // Get value of the named rate counter
   fmt.Println(named_counter.Get()) // 1
 }
+
+#### Interested only in rate per interval
+
+You can also use the `Ping()` and `GetPingRate()` functions to get the rate count of events within specified timeframe.
