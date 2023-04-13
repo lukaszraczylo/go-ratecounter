@@ -12,7 +12,8 @@ func NewRateCounter() *RateCounter {
 		counters: make(map[string]*Counter),
 	}
 	rc.counters["default"] = &Counter{
-		active: true,
+		ticks:  make([]ticks, 0),
+		values: make([]values, 0),
 	}
 	rc.stop = make(chan bool)
 	go rc.start()
@@ -41,7 +42,8 @@ func (rc *RateCounter) WithName(name string) (*Counter, error) {
 	}
 	if _, ok := rc.counters[name]; !ok {
 		rc.counters[name] = &Counter{
-			active: true,
+			ticks:  make([]ticks, 0),
+			values: make([]values, 0),
 			parent: rc,
 		}
 		rc.restart()

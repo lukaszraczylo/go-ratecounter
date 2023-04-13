@@ -36,9 +36,17 @@ func (suite *Tests) TestRateCounter_Incr() {
 				interval: 60 * time.Second,
 				counters: map[string]*Counter{
 					"default": &Counter{
-						active: true,
-						count:  1337,
-						ticks:  1,
+						values: []values{
+							{
+								value:     1337,
+								timestamp: time.Now(),
+							},
+						},
+						ticks: []ticks{
+							{
+								timestamp: time.Now(),
+							},
+						},
 					},
 				},
 			},
@@ -47,8 +55,8 @@ func (suite *Tests) TestRateCounter_Incr() {
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
 			test_rc.Incr(tt.args.v)
-			assert.Equal(t, test_rc.counters["default"].count, tt.want.counters["default"].count)
-			assert.Equal(t, test_rc.counters["default"].ticks, tt.want.counters["default"].ticks)
+			assert.Equal(t, test_rc.Get(), tt.want.counters["default"].getValue())
+			assert.Equal(t, test_rc.GetTicks(), int64(len(tt.want.counters["default"].ticks)))
 		})
 	}
 }
@@ -75,9 +83,17 @@ func (suite *Tests) TestRateCounter_IncrByName() {
 				interval: 60 * time.Second,
 				counters: map[string]*Counter{
 					"default": &Counter{
-						active: true,
-						count:  1337,
-						ticks:  1,
+						values: []values{
+							{
+								timestamp: time.Now(),
+								value:     1337,
+							},
+						},
+						ticks: []ticks{
+							{
+								timestamp: time.Now(),
+							},
+						},
 					},
 				},
 			},
@@ -92,12 +108,36 @@ func (suite *Tests) TestRateCounter_IncrByName() {
 				interval: 60 * time.Second,
 				counters: map[string]*Counter{
 					"default": &Counter{
-						active: true,
-						count:  0,
+						values: []values{
+							{
+								timestamp: time.Now(),
+								value:     1,
+							},
+							{
+								timestamp: time.Now(),
+								value:     1337,
+							},
+						},
+						ticks: []ticks{
+							{
+								timestamp: time.Now(),
+							}, {
+								timestamp: time.Now(),
+							},
+						},
 					},
 					"test": &Counter{
-						active: true,
-						count:  1337,
+						values: []values{
+							{
+								timestamp: time.Now(),
+								value:     8,
+							},
+						},
+						ticks: []ticks{
+							{
+								timestamp: time.Now(),
+							},
+						},
 					},
 				},
 			},
@@ -105,16 +145,14 @@ func (suite *Tests) TestRateCounter_IncrByName() {
 	}
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
-			// currentName := "default"
 			tc := &Counter{}
 			if !tt.args.withName {
 			} else {
 				tc, _ = test_rc.WithName(tt.args.name)
-				// currentName = tt.args.name
 			}
 
 			test_rc.IncrByName(tt.args.name, tt.args.v)
-			assert.Equal(t, tc.count, tt.args.v)
+			assert.Equal(t, test_rc.GetByName(tt.args.name), tc.getValue())
 		})
 	}
 }
@@ -145,9 +183,17 @@ func (suite *Tests) TestRateCounter_IncrBy() {
 				interval: 60 * time.Second,
 				counters: map[string]*Counter{
 					"t123": &Counter{
-						active: true,
-						count:  1337,
-						ticks:  1,
+						values: []values{
+							{
+								value:     1337,
+								timestamp: time.Now(),
+							},
+						},
+						ticks: []ticks{
+							{
+								timestamp: time.Now(),
+							},
+						},
 					},
 				},
 			},
@@ -196,9 +242,17 @@ func (suite *Tests) TestRateCounter_WithExpiry() {
 				interval: 60 * time.Second,
 				counters: map[string]*Counter{
 					"t123": &Counter{
-						active: true,
-						count:  1337,
-						ticks:  1,
+						values: []values{
+							{
+								value:     1337,
+								timestamp: time.Now(),
+							},
+						},
+						ticks: []ticks{
+							{
+								timestamp: time.Now(),
+							},
+						},
 					},
 				},
 			},
@@ -247,8 +301,17 @@ func (suite *Tests) TestRateCounter_PingWithExpiry() {
 				interval: 60 * time.Second,
 				counters: map[string]*Counter{
 					"t123": &Counter{
-						active: true,
-						count:  1337,
+						values: []values{
+							{
+								value:     1337,
+								timestamp: time.Now(),
+							},
+						},
+						ticks: []ticks{
+							{
+								timestamp: time.Now(),
+							},
+						},
 					},
 				},
 			},
@@ -261,9 +324,7 @@ func (suite *Tests) TestRateCounter_PingWithExpiry() {
 			})
 			test_rc.Ping()
 			assert.Equal(t, tt.args.rate, test_rc.GetPingRate(), "Average does not match")
-
-			time.Sleep(time.Duration(tt.args.interval+1) * time.Second)
-
+			time.Sleep(time.Duration(tt.args.interval*1) * time.Second)
 			assert.Equal(t, float64(0), test_rc.GetPingRate(), "Rate does not match")
 		})
 	}

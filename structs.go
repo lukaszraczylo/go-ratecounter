@@ -9,11 +9,22 @@ var (
 	binName = "goratecounter"
 )
 
+type ticks struct {
+	timestamp time.Time
+}
+
+type values struct {
+	value     int64
+	timestamp time.Time
+}
+
 type Counter struct {
-	active bool
-	ticks  int64
-	count  int64
-	parent *RateCounter
+	ticks      []ticks
+	values     []values
+	parent     *RateCounter
+	mu         sync.Mutex
+	valuesPool sync.Pool
+	ticksPool  sync.Pool
 }
 
 type RateCounter struct {
@@ -27,4 +38,5 @@ type RateCounter struct {
 
 type RateCounterConfig struct {
 	Interval time.Duration
+	MaxSize  int
 }

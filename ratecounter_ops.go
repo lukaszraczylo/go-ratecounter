@@ -1,6 +1,8 @@
 package goratecounter
 
-import "sync/atomic"
+import (
+	"time"
+)
 
 // Interface allowing incrementation of both RateCounter and Counter
 type Incrementer interface {
@@ -15,14 +17,12 @@ type Incrementer interface {
 
 // Incr increments the counter by the given value
 func (rc *RateCounter) Incr(v int64) {
-	atomic.AddInt64(&rc.counters["default"].count, int64(v))
-	atomic.AddInt64(&rc.counters["default"].ticks, 1)
+	rc.counters["default"].addValue(v)
 }
 
 // Incr increments the counter by the given value
 func (c *Counter) Incr(v int64) {
-	atomic.AddInt64(&c.count, int64(v))
-	atomic.AddInt64(&c.ticks, 1)
+	c.addValue(v)
 }
 
 // IncrByName increments the counter by the given value using the given name
@@ -30,18 +30,23 @@ func (rc *RateCounter) IncrByName(name string, v int64) {
 	if _, ok := rc.counters[name]; !ok {
 		rc.WithName(name)
 	}
-	atomic.AddInt64(&rc.counters[name].ticks, 1)
-	atomic.AddInt64(&rc.counters[name].count, int64(v))
+	rc.counters[name].addValue(v)
 }
 
 // Get returns the current value of the default counter
 func (rc *RateCounter) Get() int64 {
-	return atomic.LoadInt64(&rc.counters["default"].count)
+	return rc.GetByName("default")
 }
 
 // Get returns the current value of the counter
 func (c *Counter) Get() int64 {
-	return atomic.LoadInt64(&c.count)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	sum := int64(0)
+	for _, value := range c.values {
+		sum += value.value
+	}
+	return sum
 }
 
 // GetByName returns the current value of the counter with the given name
@@ -49,17 +54,25 @@ func (rc *RateCounter) GetByName(name string) int64 {
 	if _, ok := rc.counters[name]; !ok {
 		rc.WithName(name)
 	}
-	return atomic.LoadInt64(&rc.counters[name].count)
+	rc.counters[name].mu.Lock()
+	defer rc.counters[name].mu.Unlock()
+	sum := int64(0)
+	for _, value := range rc.counters[name].values {
+		sum += value.value
+	}
+	return sum
 }
 
 // GetTicks returns the current number of events of the default counter
 func (rc *RateCounter) GetTicks() int64 {
-	return atomic.LoadInt64(&rc.counters["default"].ticks)
+	return rc.GetTicksByName("default")
 }
 
 // GetTicks returns the current number of events of the counter
 func (c *Counter) GetTicks() int64 {
-	return atomic.LoadInt64(&c.ticks)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return int64(len(c.ticks))
 }
 
 // GetTicksByName returns the current number of events of the counter with the given name
@@ -67,7 +80,9 @@ func (rc *RateCounter) GetTicksByName(name string) int64 {
 	if _, ok := rc.counters[name]; !ok {
 		rc.WithName(name)
 	}
-	return atomic.LoadInt64(&rc.counters[name].ticks)
+	rc.counters[name].mu.Lock()
+	defer rc.counters[name].mu.Unlock()
+	return int64(len(rc.counters[name].ticks))
 }
 
 // GetRate returns the current rate of the default counter over period of time
@@ -120,12 +135,14 @@ func (rc *RateCounter) AverageByName(name string) float64 {
 
 // Increase ping counter for the default rate counter
 func (rc *RateCounter) Ping() {
-	atomic.AddInt64(&rc.counters["default"].ticks, 1)
+	rc.PingByName("default")
 }
 
 // Increase ping counter for the counter
 func (c *Counter) Ping() {
-	atomic.AddInt64(&c.ticks, 1)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.ticks = append(c.ticks, ticks{timestamp: time.Now()})
 }
 
 // Increase ping counter for the counter with the given name
@@ -133,23 +150,25 @@ func (rc *RateCounter) PingByName(name string) {
 	if _, ok := rc.counters[name]; !ok {
 		rc.WithName(name)
 	}
-	atomic.AddInt64(&rc.counters[name].ticks, 1)
+	rc.counters["default"].mu.Lock()
+	defer rc.counters["default"].mu.Unlock()
+	rc.counters["default"].ticks = append(rc.counters["default"].ticks, ticks{timestamp: time.Now()})
 }
 
 // Get ping rate for default counter
 func (rc *RateCounter) GetPingRate() float64 {
-	if rc.counters["default"].ticks == 0 {
+	if len(rc.counters["default"].ticks) == 0 {
 		return 0
 	}
-	return float64(rc.counters["default"].ticks) / float64(rc.interval.Seconds())
+	return float64(len(rc.counters["default"].ticks)) / float64(rc.interval.Seconds())
 }
 
 // Get ping rate for the counter
 func (c *Counter) GetPingRate() float64 {
-	if c.ticks == 0 {
+	if len(c.ticks) == 0 {
 		return 0
 	}
-	return float64(c.parent.interval.Seconds()) / float64(c.ticks)
+	return float64(c.parent.interval.Seconds()) / float64(len(c.ticks))
 }
 
 // Get ping rate for the counter with the given name
@@ -157,5 +176,5 @@ func (rc *RateCounter) GetPingRateByName(name string) float64 {
 	if rc.GetTicksByName(name) == 0 {
 		return 0
 	}
-	return float64(rc.interval.Seconds()) / float64(rc.counters[name].ticks)
+	return float64(rc.interval.Seconds()) / float64(len(rc.counters[name].ticks))
 }

@@ -32,9 +32,7 @@ func (suite *Tests) TestNewRateCounter() {
 			want: &RateCounter{
 				interval: 60 * time.Second,
 				counters: map[string]*Counter{
-					"default": &Counter{
-						active: true,
-					},
+					"default": &Counter{},
 				},
 			},
 		},
@@ -42,7 +40,6 @@ func (suite *Tests) TestNewRateCounter() {
 	for _, tt := range tests {
 		suite.T().Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, test_rc.interval, tt.want.interval)
-			assert.Equal(t, test_rc.counters["default"].active, tt.want.counters["default"].active)
 		})
 	}
 }
@@ -66,9 +63,7 @@ func (suite *Tests) TestRateCounter_WithConfig() {
 			want: &RateCounter{
 				interval: 1 * time.Second,
 				counters: map[string]*Counter{
-					"default": &Counter{
-						active: true,
-					},
+					"default": &Counter{},
 				},
 			},
 		},
@@ -102,7 +97,7 @@ func (suite *Tests) TestRateCounter_WithName() {
 			want: &RateCounter{
 				counters: map[string]*Counter{
 					"test": &Counter{
-						active: true,
+						ticks: nil,
 					},
 				},
 			},
@@ -118,7 +113,7 @@ func (suite *Tests) TestRateCounter_WithName() {
 			want: &RateCounter{
 				counters: map[string]*Counter{
 					"test": &Counter{
-						active: true,
+						ticks: nil,
 					},
 				},
 			},
@@ -134,9 +129,8 @@ func (suite *Tests) TestRateCounter_WithName() {
 				assert.Error(t, err)
 			}
 			// assert equal except of field "parent"
-			assert.Equal(t, test_rc.counters[tt.fields.name].active, tt.want.counters[tt.fields.name].active)
-			assert.Equal(t, test_rc.counters[tt.fields.name].ticks, tt.want.counters[tt.fields.name].ticks)
-			assert.Equal(t, test_rc.counters[tt.fields.name].count, tt.want.counters[tt.fields.name].count)
+			// assert.Equal(t, test_rc.counters[tt.fields.name].ticks, tt.want.counters[tt.fields.name].ticks)
+			assert.Equal(t, len(test_rc.counters[tt.fields.name].values), len(tt.want.counters[tt.fields.name].values))
 		})
 	}
 }

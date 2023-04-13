@@ -5,6 +5,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -69,8 +70,12 @@ func (suite *Tests) TestRateCounter_Daisychain() {
 				increment: 7,
 			},
 			want: &Counter{
-				count: 7,
-				ticks: 1,
+				values: []values{
+					{timestamp: time.Now(), value: 7},
+				},
+				ticks: []ticks{
+					{timestamp: time.Now()},
+				},
 			},
 		},
 	}
@@ -81,9 +86,9 @@ func (suite *Tests) TestRateCounter_Daisychain() {
 			r.Incr(tt.args.increment)
 
 			// Test daisy chained counter
-			assert.Equal(t, r.Get(), tt.want.(*Counter).count)
-			assert.Equal(t, r.GetTicks(), tt.want.(*Counter).ticks)
-			assert.Equal(t, r.Average(), float64(tt.want.(*Counter).count/tt.want.(*Counter).ticks))
+			assert.Equal(t, r.Get(), tt.want.(*Counter).getValue())
+			assert.Equal(t, r.GetTicks(), int64(len(tt.want.(*Counter).ticks)))
+			assert.Equal(t, r.Average(), float64(tt.want.(*Counter).getValue()/int64(len(tt.want.(*Counter).ticks))))
 
 			// Test base counter
 			assert.Equal(t, test_rc.Get(), int64(0))
