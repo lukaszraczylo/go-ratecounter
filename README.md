@@ -105,7 +105,7 @@ func main() {
   named_counter := base_rc.WithName("testing-123").Incr(1)
   // Get value of the named rate counter
   fmt.Println(named_counter.Get()) // 1
-}
+}```
 
 #### Interested only in rate per interval
 

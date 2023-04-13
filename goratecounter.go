@@ -11,11 +11,16 @@ func NewRateCounter() *RateCounter {
 		interval: 60 * time.Second,
 		counters: make(map[string]*Counter),
 	}
+	rc.mu.Lock()
 	rc.counters["default"] = &Counter{
-		active: true,
+		ticks:  make([]ticks, 0),
+		values: make([]values, 0),
 	}
-	rc.stop = make(chan bool)
+	if rc.stop == nil {
+		rc.stop = make(chan bool)
+	}
 	go rc.start()
+	rc.mu.Unlock()
 	return rc
 }
 
@@ -23,11 +28,11 @@ func NewRateCounter() *RateCounter {
 // If the RateCounter is already active, it will be modified on the fly.
 func (rc *RateCounter) WithConfig(config RateCounterConfig) *RateCounter {
 	rc.mu.Lock()
-	defer rc.mu.Unlock()
 	// for each field of the config struct, set the corresponding field of the RateCounter struct
 	rc.customConfig = true
 	rc.interval = config.Interval
 	rc.restart()
+	rc.mu.Unlock()
 	return rc
 }
 
@@ -41,7 +46,8 @@ func (rc *RateCounter) WithName(name string) (*Counter, error) {
 	}
 	if _, ok := rc.counters[name]; !ok {
 		rc.counters[name] = &Counter{
-			active: true,
+			ticks:  make([]ticks, 0),
+			values: make([]values, 0),
 			parent: rc,
 		}
 		rc.restart()
