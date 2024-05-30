@@ -17,6 +17,8 @@ type Incrementer interface {
 
 // Incr increments the counter by the given value
 func (rc *RateCounter) Incr(v int64) {
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
 	rc.counters["default"].addValue(v)
 }
 
@@ -27,10 +29,14 @@ func (c *Counter) Incr(v int64) {
 
 // IncrByName increments the counter by the given value using the given name
 func (rc *RateCounter) IncrByName(name string, v int64) {
-	if _, ok := rc.counters[name]; !ok {
-		rc.WithName(name)
+	rc.mu.RLock()
+	counter, ok := rc.counters[name]
+	rc.mu.RUnlock()
+
+	if !ok {
+		counter, _ = rc.WithName(name)
 	}
-	rc.counters[name].addValue(v)
+	counter.addValue(v)
 }
 
 // Get returns the current value of the default counter
@@ -40,9 +46,9 @@ func (rc *RateCounter) Get() int64 {
 
 // Get returns the current value of the counter
 func (c *Counter) Get() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	sum := int64(0)
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	var sum int64
 	for _, value := range c.values {
 		sum += value.value
 	}
@@ -51,16 +57,18 @@ func (c *Counter) Get() int64 {
 
 // GetByName returns the current value of the counter with the given name
 func (rc *RateCounter) GetByName(name string) int64 {
-	if _, ok := rc.counters[name]; !ok {
-		rc.WithName(name)
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	if counter, ok := rc.counters[name]; ok {
+		counter.mu.RLock()
+		defer counter.mu.RUnlock()
+		var sum int64
+		for _, value := range counter.values {
+			sum += value.value
+		}
+		return sum
 	}
-	rc.counters[name].mu.Lock()
-	defer rc.counters[name].mu.Unlock()
-	sum := int64(0)
-	for _, value := range rc.counters[name].values {
-		sum += value.value
-	}
-	return sum
+	return 0
 }
 
 // GetTicks returns the current number of events of the default counter
@@ -70,27 +78,26 @@ func (rc *RateCounter) GetTicks() int64 {
 
 // GetTicks returns the current number of events of the counter
 func (c *Counter) GetTicks() int64 {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return int64(len(c.ticks))
 }
 
 // GetTicksByName returns the current number of events of the counter with the given name
 func (rc *RateCounter) GetTicksByName(name string) int64 {
-	if _, ok := rc.counters[name]; !ok {
-		rc.WithName(name)
+	rc.mu.RLock()
+	defer rc.mu.RUnlock()
+	if counter, ok := rc.counters[name]; ok {
+		counter.mu.RLock()
+		defer counter.mu.RUnlock()
+		return int64(len(counter.ticks))
 	}
-	rc.counters[name].mu.Lock()
-	defer rc.counters[name].mu.Unlock()
-	return int64(len(rc.counters[name].ticks))
+	return 0
 }
 
 // GetRate returns the current rate of the default counter over period of time
 func (rc *RateCounter) GetRate() float64 {
-	if rc.Get() == 0 {
-		return 0
-	}
-	return float64(rc.Get()) / float64(rc.interval.Seconds())
+	return rc.GetRateByName("default")
 }
 
 // GetRate returns the current rate of the counter over period of time
@@ -98,39 +105,39 @@ func (c *Counter) GetRate() float64 {
 	if c.Get() == 0 {
 		return 0
 	}
-	return float64(c.parent.interval.Seconds()) / float64(c.Get())
+	return float64(c.Get()) / c.parent.interval.Seconds()
 }
 
 // GetRateByName returns the current rate of the counter with the given name
 func (rc *RateCounter) GetRateByName(name string) float64 {
-	if rc.GetByName(name) == 0 {
+	total := rc.GetByName(name)
+	if total == 0 {
 		return 0
 	}
-	return float64(rc.GetByName(name)) / float64(rc.interval.Seconds())
+	return float64(total) / rc.interval.Seconds()
 }
 
 // Average returns the average value of the default counter over period of time
 func (rc *RateCounter) Average() float64 {
-	if rc.GetTicks() == 0 {
-		return 0
-	}
-	return float64(rc.Get()) / float64(rc.GetTicks())
+	return rc.AverageByName("default")
 }
 
 // Average returns the average value of the counter over period of time
 func (c *Counter) Average() float64 {
-	if c.GetTicks() == 0 {
+	ticks := c.GetTicks()
+	if ticks == 0 {
 		return 0
 	}
-	return float64(c.Get()) / float64(c.GetTicks())
+	return float64(c.Get()) / float64(ticks)
 }
 
 // AverageByName returns the average value of the counter with the given name
 func (rc *RateCounter) AverageByName(name string) float64 {
-	if rc.GetTicksByName(name) == 0 {
+	ticks := rc.GetTicksByName(name)
+	if ticks == 0 {
 		return 0
 	}
-	return float64(rc.GetByName(name)) / float64(rc.GetTicksByName(name))
+	return float64(rc.GetByName(name)) / float64(ticks)
 }
 
 // Increase ping counter for the default rate counter
@@ -147,38 +154,38 @@ func (c *Counter) Ping() {
 
 // Increase ping counter for the counter with the given name
 func (rc *RateCounter) PingByName(name string) {
-	if _, ok := rc.counters[name]; !ok {
-		rc.WithName(name)
+	rc.mu.RLock()
+	counter, ok := rc.counters[name]
+	rc.mu.RUnlock()
+
+	if !ok {
+		counter, _ = rc.WithName(name)
 	}
-	rc.counters["default"].mu.Lock()
-	rc.counters["default"].ticks = append(rc.counters["default"].ticks, ticks{timestamp: time.Now()})
-	rc.counters["default"].mu.Unlock()
+	counter.mu.Lock()
+	counter.ticks = append(counter.ticks, ticks{timestamp: time.Now()})
+	counter.mu.Unlock()
 }
 
 // Get ping rate for default counter
 func (rc *RateCounter) GetPingRate() float64 {
-	rc.mu.RLock()
-	defer rc.mu.RUnlock()
-	rc.counters["default"].mu.RLock()
-	defer rc.counters["default"].mu.RUnlock()
-	if len(rc.counters["default"].ticks) == 0 {
-		return 0
-	}
-	return float64(len(rc.counters["default"].ticks)) / float64(rc.interval.Seconds())
+	return rc.GetPingRateByName("default")
 }
 
 // Get ping rate for the counter
 func (c *Counter) GetPingRate() float64 {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	if len(c.ticks) == 0 {
 		return 0
 	}
-	return float64(c.parent.interval.Seconds()) / float64(len(c.ticks))
+	return float64(len(c.ticks)) / c.parent.interval.Seconds()
 }
 
 // Get ping rate for the counter with the given name
 func (rc *RateCounter) GetPingRateByName(name string) float64 {
-	if rc.GetTicksByName(name) == 0 {
+	ticks := rc.GetTicksByName(name)
+	if ticks == 0 {
 		return 0
 	}
-	return float64(rc.interval.Seconds()) / float64(len(rc.counters[name].ticks))
+	return float64(ticks) / rc.interval.Seconds()
 }

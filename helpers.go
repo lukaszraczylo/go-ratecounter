@@ -11,10 +11,12 @@ func (rc *RateCounter) start() {
 	for {
 		select {
 		case <-ticker.C:
+			now := time.Now()
+			rc.mu.RLock()
 			for _, counter := range rc.counters {
-				now := time.Now()
 				rc.cleanUpOldValues(counter, now)
 			}
+			rc.mu.RUnlock()
 		case <-rc.getStopChan():
 			ticker.Stop()
 			return
@@ -52,6 +54,7 @@ func (rc *RateCounter) cleanUpOldValues(counter *Counter, now time.Time) {
 	rc.mu.RLock()
 	cutoff := now.Add(-rc.interval)
 	rc.mu.RUnlock()
+
 	counter.mu.Lock()
 	for _, value := range counter.values {
 		if value.timestamp.After(cutoff) {
@@ -71,17 +74,17 @@ func (rc *RateCounter) cleanUpOldValues(counter *Counter, now time.Time) {
 func (c *Counter) addValue(value int64) {
 	t := time.Now()
 	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.values = append(c.values, values{value: value, timestamp: t})
 	c.ticks = append(c.ticks, ticks{timestamp: t})
-	c.mu.Unlock()
 }
 
 func (c *Counter) getValue() int64 {
 	sum := int64(0)
 	c.mu.RLock()
+	defer c.mu.RUnlock()
 	for _, value := range c.values {
 		sum += value.value
 	}
-	c.mu.RUnlock()
 	return sum
 }

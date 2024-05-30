@@ -10,17 +10,14 @@ func NewRateCounter() *RateCounter {
 	rc := &RateCounter{
 		interval: 60 * time.Second,
 		counters: make(map[string]*Counter),
+		stop:     make(chan bool),
 	}
-	rc.mu.Lock()
 	rc.counters["default"] = &Counter{
 		ticks:  make([]ticks, 0),
 		values: make([]values, 0),
-	}
-	if rc.stop == nil {
-		rc.stop = make(chan bool)
+		parent: rc,
 	}
 	go rc.start()
-	rc.mu.Unlock()
 	return rc
 }
 
@@ -28,11 +25,10 @@ func NewRateCounter() *RateCounter {
 // If the RateCounter is already active, it will be modified on the fly.
 func (rc *RateCounter) WithConfig(config RateCounterConfig) *RateCounter {
 	rc.mu.Lock()
-	// for each field of the config struct, set the corresponding field of the RateCounter struct
+	defer rc.mu.Unlock()
 	rc.customConfig = true
 	rc.interval = config.Interval
 	rc.restart()
-	rc.mu.Unlock()
 	return rc
 }
 
@@ -41,9 +37,6 @@ func (rc *RateCounter) WithConfig(config RateCounterConfig) *RateCounter {
 func (rc *RateCounter) WithName(name string) (*Counter, error) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
-	if rc.counters == nil {
-		rc.counters = make(map[string]*Counter, 0)
-	}
 	if _, ok := rc.counters[name]; !ok {
 		rc.counters[name] = &Counter{
 			ticks:  make([]ticks, 0),
@@ -51,8 +44,7 @@ func (rc *RateCounter) WithName(name string) (*Counter, error) {
 			parent: rc,
 		}
 		rc.restart()
-	} else {
-		return rc.counters[name], fmt.Errorf("counter with name %s already exists", name)
+		return rc.counters[name], nil
 	}
-	return rc.counters[name], nil
+	return rc.counters[name], fmt.Errorf("counter with name %s already exists", name)
 }
