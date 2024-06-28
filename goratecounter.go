@@ -2,10 +2,24 @@ package goratecounter
 
 import (
 	"fmt"
+	"sync"
 	"time"
 )
 
-// NewRateCounter creates a new RateCounter instance supporting multiple counters
+var (
+	ticksPool = sync.Pool{
+		New: func() interface{} {
+			return &ticks{}
+		},
+	}
+
+	valuesPool = sync.Pool{
+		New: func() interface{} {
+			return &values{}
+		},
+	}
+)
+
 func NewRateCounter() *RateCounter {
 	rc := &RateCounter{
 		interval: 60 * time.Second,
@@ -13,16 +27,14 @@ func NewRateCounter() *RateCounter {
 		stop:     make(chan bool),
 	}
 	rc.counters["default"] = &Counter{
-		ticks:  make([]ticks, 0),
-		values: make([]values, 0),
+		ticks:  make([]ticks, 0, 1000),
+		values: make([]values, 0, 1000),
 		parent: rc,
 	}
 	go rc.start()
 	return rc
 }
 
-// WithConfig sets the configuration of the RateCounter
-// If the RateCounter is already active, it will be modified on the fly.
 func (rc *RateCounter) WithConfig(config RateCounterConfig) *RateCounter {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
@@ -32,15 +44,13 @@ func (rc *RateCounter) WithConfig(config RateCounterConfig) *RateCounter {
 	return rc
 }
 
-// WithName creates a new counter with the given name
-// If the counter already exists - it will not be modified and error will be returned.
 func (rc *RateCounter) WithName(name string) (*Counter, error) {
 	rc.mu.Lock()
 	defer rc.mu.Unlock()
 	if _, ok := rc.counters[name]; !ok {
 		rc.counters[name] = &Counter{
-			ticks:  make([]ticks, 0),
-			values: make([]values, 0),
+			ticks:  make([]ticks, 0, 1000),
+			values: make([]values, 0, 1000),
 			parent: rc,
 		}
 		rc.restart()

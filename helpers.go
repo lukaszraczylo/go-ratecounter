@@ -48,35 +48,47 @@ func (rc *RateCounter) restart() {
 }
 
 func (rc *RateCounter) cleanUpOldValues(counter *Counter, now time.Time) {
-	newValues := make([]values, 0)
-	newTicks := make([]ticks, 0)
-
 	rc.mu.RLock()
 	cutoff := now.Add(-rc.interval)
 	rc.mu.RUnlock()
 
 	counter.mu.Lock()
+	defer counter.mu.Unlock()
+
+	// Filter in place
+	newValues := counter.values[:0]
 	for _, value := range counter.values {
 		if value.timestamp.After(cutoff) {
 			newValues = append(newValues, value)
-		}
-	}
-	for _, tick := range counter.ticks {
-		if tick.timestamp.After(cutoff) {
-			newTicks = append(newTicks, tick)
+		} else {
+			valuesPool.Put(&value)
 		}
 	}
 	counter.values = newValues
+
+	newTicks := counter.ticks[:0]
+	for _, tick := range counter.ticks {
+		if tick.timestamp.After(cutoff) {
+			newTicks = append(newTicks, tick)
+		} else {
+			ticksPool.Put(&tick)
+		}
+	}
 	counter.ticks = newTicks
-	counter.mu.Unlock()
 }
 
 func (c *Counter) addValue(value int64) {
 	t := time.Now()
+	v := valuesPool.Get().(*values)
+	v.timestamp = t
+	v.value = value
+	tk := ticksPool.Get().(*ticks)
+	tk.timestamp = t
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.values = append(c.values, values{value: value, timestamp: t})
-	c.ticks = append(c.ticks, ticks{timestamp: t})
+	c.values = append(c.values, *v)
+	c.ticks = append(c.ticks, *tk)
 }
 
 func (c *Counter) getValue() int64 {
