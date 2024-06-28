@@ -110,3 +110,4 @@ func main() {
 #### Interested only in rate per interval
 
 You can also use the `Ping()` and `GetPingRate()` functions to get the rate count of events within specified timeframe.
+
